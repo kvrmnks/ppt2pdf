@@ -2,10 +2,29 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 import sys
 import os
 import mytools
+import math
+
+
+class MyProgressBar(QtWidgets.QDialog):
+
+    def update_value(self, x: int) -> None:
+        self.progressbar.setValue(x)
+
+    def __init__(self, title: str, label: str):
+        super(MyProgressBar, self).__init__()
+        self.progressbar = QtWidgets.QProgressBar()
+        self.setWindowTitle(title)
+        self.label = QtWidgets.QLabel(label)
+        self.layout = QtWidgets.QVBoxLayout()
+        self.setLayout(self.layout)
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.progressbar)
+        self.resize(500, 100)
 
 
 class ConvertWork(QtCore.QThread):
     trigger = QtCore.pyqtSignal(int, str)
+    during_trigger = QtCore.pyqtSignal(int)
 
     def __init__(self, fileName: list, path: list, index: list):
         super(ConvertWork, self).__init__()
@@ -16,15 +35,21 @@ class ConvertWork(QtCore.QThread):
         # self.result = ''
 
     def run(self):
+        cnt = 0
         for i in range(len(self.fileName)):
-            try:
-                result = mytools.convert_ppt_pdf(self.fileName[i], self.path[i])
-                self.trigger.emit(self.index[i], result)
-            except Exception:
-                pass
+            # try:
+            result = mytools.convert_ppt_pdf(self.fileName[i], self.path[i])
+            self.trigger.emit(self.index[i], result)
+            cnt = cnt + 1
+            # except Exception as e:
+            #     print(e)
+            # finally:
+            self.during_trigger.emit(math.ceil(100 * cnt / len(self.fileName)))
 
 
 class MergeWork(QtCore.QThread):
+    during_trigger = QtCore.pyqtSignal(int)
+
     def __init__(self, fileName: list, labelList: list, out: str):
         super(MergeWork, self).__init__()
         self.fileName = fileName
@@ -32,7 +57,8 @@ class MergeWork(QtCore.QThread):
         self.out = out
 
     def run(self) -> None:
-        mytools.merge_pdf(self.fileName, self.labelList, self.out)
+        for i in mytools.merge_pdf(self.fileName, self.labelList, self.out):
+            self.during_trigger.emit(math.ceil(100 * i / len(self.fileName)))
 
 
 class MyModel(QtGui.QStandardItemModel):
@@ -137,6 +163,11 @@ class MyTableView(QtWidgets.QTableView):
         self.setDragDropOverwriteMode(False)
         QtWidgets.QShortcut(QtGui.QKeySequence(self.tr("Del")), self, self.deleteRows)  # 删除选中行
         self.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        # print('abab')
+
+        self.pb = MyProgressBar('ppt2pdf', '')
+        self.pb.setWindowModality(QtCore.Qt.ApplicationModal)
+        self.pb.progressbar.setValue(0)
 
     def clearRows(self):
         for i in range(self.model.rowCount()):
@@ -208,9 +239,17 @@ class MyTableView(QtWidgets.QTableView):
 class Table(QtWidgets.QWidget):
     def generate_pdf(self):
         self.tableView.model.convert_pdf()
+        self.tableView.pb.progressbar.setValue(0)
+        self.tableView.model.convert_thread.during_trigger.connect(self.tableView.pb.update_value)
+        self.tableView.pb.label.setText('生成pdf')
+        self.tableView.pb.exec_()
 
     def merge_pdf(self):
         self.tableView.model.merge_pdf()
+        self.tableView.pb.progressbar.setValue(0)
+        self.tableView.model.merge_thread.during_trigger.connect(self.tableView.pb.update_value)
+        self.tableView.pb.label.setText('合并pdf')
+        self.tableView.pb.exec_()
         # QtWidgets.QMessageBox.information(self, 'ppt2pdf', 'pdf合并完毕',
         #                                   QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
 

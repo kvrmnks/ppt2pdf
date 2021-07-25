@@ -6,7 +6,7 @@ import re
 
 
 def convert(input_file: str, output: str, format_code=32) -> None:
-    print('converting ' + input_file)
+    print('converting ' + input_file + ' ' + output)
     comtypes.CoInitialize()  # 一定要初始化
     ppt = comtypes.client.CreateObject('Powerpoint.Application')
     ppt.Visible = 1
@@ -23,13 +23,15 @@ def convert_ppt_pdf(fileName: str, path: str) -> str:
             pdf_name = fileName[:-3] + 'pdf'
         if fileName.endswith('pptx'):
             pdf_name = fileName[:-4] + 'pdf'
-        convert('"' + path + '"', '"' + os.getcwd() + '/' + pdf_name + '"')
+        convert(path, os.getcwd() + '/' + pdf_name)
         return os.getcwd() + '/' + pdf_name
 
 
-def merge_pdf(fileList: list, labelList: list, out: str) -> None:
+def merge_pdf(fileList: list, labelList: list, out: str):
     main = PyPDF2.PdfFileMerger()
     for i in range(len(fileList)):
         main.append(fileList[i], bookmark=labelList[i])
         print('merged ' + fileList[i])
+        yield i
     main.write(out)
+    yield len(fileList)
