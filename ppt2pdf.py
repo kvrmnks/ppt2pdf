@@ -19,7 +19,7 @@ class ConvertWork(QtCore.QThread):
         for i in range(len(self.fileName)):
             try:
                 result = mytools.convert_ppt_pdf(self.fileName[i], self.path[i])
-                self.trigger.emit(i, result)
+                self.trigger.emit(self.index[i], result)
             except Exception:
                 pass
 
